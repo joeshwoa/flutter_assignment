@@ -8,23 +8,25 @@ import 'package:flutter_assignment/model/post.dart';
 import 'package:flutterflow_ui/flutterflow_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class HomePageWidget extends StatefulWidget {
-  const HomePageWidget({super.key});
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
   @override
-  State<HomePageWidget> createState() => _HomePageWidgetState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageWidgetState extends State<HomePageWidget>
+class _HomePageState extends State<HomePage>
     with TickerProviderStateMixin {
+
+  // Initialize variables and objects
   List<Post> posts = [];
-
   String type = 'hot';
-
+  final ScrollController _scrollController = ScrollController();
+  bool loading = false;
   final scaffoldKey = GlobalKey<ScaffoldState>();
-
   final unfocusNode = FocusNode();
 
+  // Animation map for managing animations
   final animationsMap = {
     'containerOnPageLoadAnimation1': AnimationInfo(
       trigger: AnimationTrigger.onPageLoad,
@@ -46,8 +48,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
           curve: Curves.easeInOut,
           delay: 0.ms,
           duration: 600.ms,
-          begin: Offset(1, 1),
-          end: Offset(1, 1),
+          begin: const Offset(1, 1),
+          end: const Offset(1, 1),
         ),
       ],
     ),
@@ -59,8 +61,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
           curve: Curves.easeInOut,
           delay: 0.ms,
           duration: 600.ms,
-          begin: Offset(1, 1),
-          end: Offset(1, 1),
+          begin: const Offset(1, 1),
+          end: const Offset(1, 1),
         ),
       ],
     ),
@@ -72,8 +74,8 @@ class _HomePageWidgetState extends State<HomePageWidget>
           curve: Curves.easeInOut,
           delay: 0.ms,
           duration: 600.ms,
-          begin: Offset(1, 1),
-          end: Offset(1, 1),
+          begin: const Offset(1, 1),
+          end: const Offset(1, 1),
         ),
       ],
     ),
@@ -96,27 +98,39 @@ class _HomePageWidgetState extends State<HomePageWidget>
           curve: Curves.easeInOut,
           delay: 0.ms,
           duration: 600.ms,
-          begin: Offset(0, 0),
-          end: Offset(0, 0),
+          begin: const Offset(0, 0),
+          end: const Offset(0, 0),
         ),
       ],
     ),
   };
 
+  // FirebaseService instance for fetching and storing posts
   final FirebaseService firebaseService = FirebaseService();
 
-  void fetchAndStorePosts(String type) async {
-    try {
-      // Fetch posts from FirebaseService
-      final List<Post> fetchedPosts = await firebaseService.fetchPosts(type, posts.last.name);
-      // Store fetched posts in Firebase using FirebaseService
-      await firebaseService.storePosts(fetchedPosts);
-      // Update the UI with the fetched posts
-      setState(() {
-        posts = fetchedPosts;
-      });
-    } catch (e) {
-      print('Error: $e');
+  void fetchAndStorePosts() async {
+    if(!loading) {
+      setState(() => loading = true);
+
+      try {
+        // Fetch posts from FirebaseService
+        List<Post> fetchedPosts = [];
+        if(posts.isNotEmpty) {
+          fetchedPosts = await firebaseService.fetchPosts(type, posts.last.name);
+        } else {
+          fetchedPosts = await firebaseService.fetchPosts(type, '');
+        }
+        // Store fetched posts in Firebase using FirebaseService
+        await firebaseService.storePosts(fetchedPosts);
+        // Update the UI with the fetched posts
+        setState(() {
+          posts.addAll(fetchedPosts);
+          loading = false;
+        });
+      } catch (e) {
+        setState(() => loading = false);
+        log('Error: $e');
+      }
     }
   }
 
@@ -130,17 +144,29 @@ class _HomePageWidgetState extends State<HomePageWidget>
           !anim.applyInitialState),
       this,
     );
+
+    // Scroll listener to fetch more posts when reaching the end of the list
+    _scrollController.addListener(_scrollListener);
+    fetchAndStorePosts();
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels ==
+        _scrollController.position.maxScrollExtent) {
+      fetchAndStorePosts();
+    }
   }
 
   @override
   void dispose() {
     unfocusNode.dispose();
-
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Adjust system UI overlay style if running on iOS
     if (isiOS) {
       SystemChrome.setSystemUIOverlayStyle(
         SystemUiOverlayStyle(
@@ -169,7 +195,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
               fontWeight: FontWeight.bold,
             ),
           ),
-          actions: [],
+          actions: const [],
           centerTitle: false,
           elevation: 0,
         ),
@@ -197,25 +223,32 @@ class _HomePageWidgetState extends State<HomePageWidget>
                         setState(() {
                           posts.clear();
                           type = 'hot';
-                          //get hot posts from url and store them in the firebase store.
                         });
+                        fetchAndStorePosts();
                       },
                       child: Column(
                         mainAxisSize: MainAxisSize.max,
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Padding(
-                            padding: EdgeInsetsDirectional.fromSTEB(0, 0, 0, 20),
+                            padding: const EdgeInsetsDirectional.fromSTEB(0, 0, 0, 20),
                             child: Text(
                               'Hot',
-                              style: FlutterFlowTheme.of(context).bodyMedium,
+                              style: type == 'hot'? FlutterFlowTheme.of(context).bodyMedium : FlutterFlowTheme.of(context)
+                                  .bodyMedium
+                                  .override(
+                                fontFamily: 'Readex Pro',
+                                color: FlutterFlowTheme.of(context)
+                                    .secondaryText,
+                                fontWeight: FontWeight.w300,
+                              ),
                             ),
                           ),
                           Container(
                             width: MediaQuery.sizeOf(context).width * 0.3,
                             height: 1,
                             decoration: BoxDecoration(
-                              color: type == 'hot'? Color(0xFF4E4CEC) : FlutterFlowTheme.of(context)
+                              color: type == 'hot'? const Color(0xFF4E4CEC) : FlutterFlowTheme.of(context)
                                   .secondaryBackground,
                             ),
                           ),
@@ -233,18 +266,18 @@ class _HomePageWidgetState extends State<HomePageWidget>
                         setState(() {
                           posts.clear();
                           type = 'new';
-                          //get new posts from url and store them in the firebase store.
                         });
+                        fetchAndStorePosts();
                       },
                       child: Column(
                         mainAxisSize: MainAxisSize.max,
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Padding(
-                            padding: EdgeInsetsDirectional.fromSTEB(0, 0, 0, 20),
+                            padding: const EdgeInsetsDirectional.fromSTEB(0, 0, 0, 20),
                             child: Text(
                               'New',
-                              style: FlutterFlowTheme.of(context)
+                              style: type == 'new'? FlutterFlowTheme.of(context).bodyMedium : FlutterFlowTheme.of(context)
                                   .bodyMedium
                                   .override(
                                 fontFamily: 'Readex Pro',
@@ -258,7 +291,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
                             width: MediaQuery.sizeOf(context).width * 0.3,
                             height: 1,
                             decoration: BoxDecoration(
-                              color: type == 'new'? Color(0xFF4E4CEC) : FlutterFlowTheme.of(context)
+                              color: type == 'new'? const Color(0xFF4E4CEC) : FlutterFlowTheme.of(context)
                                   .secondaryBackground,
                             ),
                           ),
@@ -276,18 +309,18 @@ class _HomePageWidgetState extends State<HomePageWidget>
                         setState(() {
                           posts.clear();
                           type = 'rising';
-                          //get new posts from url and store them in the firebase store.
                         });
+                        fetchAndStorePosts();
                       },
                       child: Column(
                         mainAxisSize: MainAxisSize.max,
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Padding(
-                            padding: EdgeInsetsDirectional.fromSTEB(0, 0, 0, 20),
+                            padding: const EdgeInsetsDirectional.fromSTEB(0, 0, 0, 20),
                             child: Text(
                               'Rising',
-                              style: FlutterFlowTheme.of(context)
+                              style: type == 'rising'? FlutterFlowTheme.of(context).bodyMedium : FlutterFlowTheme.of(context)
                                   .bodyMedium
                                   .override(
                                 fontFamily: 'Readex Pro',
@@ -301,7 +334,7 @@ class _HomePageWidgetState extends State<HomePageWidget>
                             width: MediaQuery.sizeOf(context).width * 0.3,
                             height: 1,
                             decoration: BoxDecoration(
-                              color: type == 'rising'? Color(0xFF4E4CEC) : FlutterFlowTheme.of(context)
+                              color: type == 'rising'? const Color(0xFF4E4CEC) : FlutterFlowTheme.of(context)
                                   .secondaryBackground,
                             ),
                           ),
@@ -316,80 +349,103 @@ class _HomePageWidgetState extends State<HomePageWidget>
                   animationsMap['containerOnPageLoadAnimation1']!),
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(10),
                   child: ListView.builder(
-                    itemCount: posts.length,
+                    controller: _scrollController,
+                    itemCount: posts.length+1,
                     itemBuilder: (context, index) {
-                      final post = posts[index];
-                      // Build UI for each post
-                      return InkWell(
-                        splashColor: Colors.transparent,
-                        focusColor: Colors.transparent,
-                        hoverColor: Colors.transparent,
-                        highlightColor: Colors.transparent,
-                        onTap: () async {
-                          final Uri url = Uri.parse(post.url);
+                      if (index < posts.length) {
+                        final post = posts[index];
+                        // Build UI for each post
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: InkWell(
+                            splashColor: Colors.transparent,
+                            focusColor: Colors.transparent,
+                            hoverColor: Colors.transparent,
+                            highlightColor: Colors.transparent,
+                            onTap: () async {
+                              final Uri url = Uri.parse(post.url);
 
-                          if (!await launchUrl(url)) {
-                            log('Could not launch $url');
-                          }
-                        },
-                        child: Container(
+                              if (!await launchUrl(url)) {
+                                log('Could not launch $url');
+                              }
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              height: 150,
+                              decoration: BoxDecoration(
+                                color: FlutterFlowTheme.of(context)
+                                    .secondaryBackground,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.max,
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    height: 2,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFFCEF83),
+                                    ),
+                                  ),
+                                  Align(
+                                    alignment: const AlignmentDirectional(-1, 0),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(10),
+                                      child: Text(
+                                        post.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: FlutterFlowTheme.of(context)
+                                            .titleLarge
+                                            .override(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Align(
+                                    alignment: const AlignmentDirectional(-1, 0),
+                                    child: Padding(
+                                      padding: const EdgeInsetsDirectional.fromSTEB(
+                                          10, 0, 10, 10),
+                                      child: SelectionArea(
+                                          child: Text(
+                                            post.selftext,
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: FlutterFlowTheme.of(context)
+                                                .bodyMedium
+                                                .override(
+                                              fontFamily: 'Readex Pro',
+                                              fontWeight: FontWeight.w300,
+                                            ),
+                                          )),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ).animateOnPageLoad(
+                              animationsMap['containerOnPageLoadAnimation2']!),
+                        );
+                      } else if(loading){
+                        return Container(
                           width: double.infinity,
                           height: 100,
                           decoration: BoxDecoration(
                             color: FlutterFlowTheme.of(context)
                                 .secondaryBackground,
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.max,
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                height: 2,
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFFCEF83),
-                                ),
-                              ),
-                              Align(
-                                alignment: AlignmentDirectional(-1, 0),
-                                child: Padding(
-                                  padding: EdgeInsets.all(10),
-                                  child: Text(
-                                    post.title,
-                                    style: FlutterFlowTheme.of(context)
-                                        .titleLarge
-                                        .override(
-                                      fontFamily: 'Outfit',
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Align(
-                                alignment: AlignmentDirectional(-1, 0),
-                                child: Padding(
-                                  padding: EdgeInsetsDirectional.fromSTEB(
-                                      10, 0, 0, 10),
-                                  child: SelectionArea(
-                                      child: Text(
-                                        post.selftext,
-                                        maxLines: 3,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: FlutterFlowTheme.of(context)
-                                            .bodyMedium
-                                            .override(
-                                          fontFamily: 'Readex Pro',
-                                          fontWeight: FontWeight.w300,
-                                        ),
-                                      )),
-                                ),
-                              ),
-                            ],
+                          child: const Center(
+                            child: CircularProgressIndicator(),
                           ),
-                        ),
-                      ).animateOnPageLoad(
-                          animationsMap['containerOnPageLoadAnimation2']!);
+                        ).animateOnPageLoad(
+                            animationsMap['containerOnPageLoadAnimation2']!);
+                      } else {
+                        return const SizedBox();
+                      }
                     },
                   ).animateOnPageLoad(
                       animationsMap['columnOnPageLoadAnimation']!),
