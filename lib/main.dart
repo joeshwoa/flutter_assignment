@@ -1,11 +1,39 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_assignment/firebase/firebase_services.dart';
+import 'package:flutter_assignment/model/post.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  MyApp({Key? key}) : super(key: key);
+
+  List<Post> posts = [];
+
+  String type = 'hot';
+
+  final FirebaseService firebaseService = FirebaseService();
+
+  void fetchAndStorePosts() async {
+    try {
+      // Fetch posts from FirebaseService
+      List<Post> fetchedPosts = [];
+      if(posts.isNotEmpty) {
+        fetchedPosts = await firebaseService.fetchPosts(type, posts.last.name);
+      } else {
+        fetchedPosts = await firebaseService.fetchPosts(type, '');
+      }
+      // Store fetched posts in Firebase using FirebaseService
+      await firebaseService.storePosts(fetchedPosts);
+      // Update the UI with the fetched posts
+      posts.addAll(fetchedPosts);
+    } catch (e) {
+      log('Error: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
